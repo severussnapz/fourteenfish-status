@@ -52,7 +52,7 @@ public class SiteMonitor : BackgroundService
         }
     }
 
-    // A site is "up" when it answers with a status code below 500.
+    // A site is "up" when it answers with a status code below 500 and, if Expect is set, the body contains it.
     public async Task<CheckResult> CheckOneAsync(SiteConfig site, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -65,7 +65,23 @@ public class SiteMonitor : BackgroundService
             stopwatch.Stop();
 
             var code = (int)response.StatusCode;
-            return new CheckResult(site.Name, DateTimeOffset.UtcNow, code < 500, code, stopwatch.ElapsedMilliseconds, null, InMaintenance(site));
+            var inMaintenance = InMaintenance(site);
+            if (code >= 500)
+            {
+                return new CheckResult(site.Name, DateTimeOffset.UtcNow, false, code, stopwatch.ElapsedMilliseconds, null, inMaintenance);
+            }
+
+            if (site.Expect is { } expected)
+            {
+                var body = await response.Content.ReadAsStringAsync(timeout.Token);
+                if (!ContainsExpected(body, expected))
+                {
+                    return new CheckResult(site.Name, DateTimeOffset.UtcNow, false, code, stopwatch.ElapsedMilliseconds,
+                        $"Expected text \"{expected}\" not found", inMaintenance);
+                }
+            }
+
+            return new CheckResult(site.Name, DateTimeOffset.UtcNow, true, code, stopwatch.ElapsedMilliseconds, null, inMaintenance);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or TaskCanceledException)
         {
@@ -73,6 +89,9 @@ public class SiteMonitor : BackgroundService
             return new CheckResult(site.Name, DateTimeOffset.UtcNow, false, null, stopwatch.ElapsedMilliseconds, ex.Message, InMaintenance(site));
         }
     }
+
+    public static bool ContainsExpected(string body, string expected) =>
+        body.Contains(expected, StringComparison.OrdinalIgnoreCase);
 
     private bool InMaintenance(SiteConfig site) =>
         Maintenance.IsActive(_options.Maintenance, site.Name, DateTimeOffset.UtcNow);

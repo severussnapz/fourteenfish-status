@@ -33,8 +33,18 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `TimeoutSeconds` | `10` | Request timeout per check |
 | `RetentionDays` | `30` | How long history is kept |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
-| `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`) |
+| `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
 | `Maintenance` | `[]` | Planned maintenance windows (see below) |
+
+### Content checks
+
+A status code alone can miss broken pages, such as a maintenance or error page that still returns 200. Set `Expect` on a site to require some text in the page body:
+
+```json
+{ "Name": "FishBase", "Url": "https://fishbase.co.uk", "Expect": "Welcome" }
+```
+
+The match is case-insensitive. A site with a missing `Expect` is judged on its status code only. When the text is missing, the site is down and the reason is recorded as `Expected text "..." not found`.
 
 ## Scheduled maintenance
 

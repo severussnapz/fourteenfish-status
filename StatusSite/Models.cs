@@ -1,6 +1,7 @@
 namespace StatusSite;
 
-public record SiteConfig(string Name, string Url);
+// Expect is optional. When set, the page body must contain it (case-insensitive) for the site to count as up.
+public record SiteConfig(string Name, string Url, string? Expect = null);
 
 public record CheckResult(
     string Site,
