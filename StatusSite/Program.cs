@@ -27,6 +27,8 @@ builder.Services.AddHostedService<SiteMonitor>();
 
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 app.MapGet("/api/status", (HistoryStore history) =>
     Results.Ok(StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow)));
 
@@ -164,7 +166,7 @@ static string RenderPage(
         <body>
           <main>
             <header class="top">
-              <span class="brand">FourteenFish</span>
+              <img class="brand-logo" src="/fourteenfish-logo.png" alt="FourteenFish" />
               <span class="crumb">Status pages / Websites</span>
             </header>
             <p class="intro">Live availability of the FourteenFish websites. Each site is checked every 5 minutes.</p>
@@ -221,7 +223,8 @@ static class PageStyle
     body { margin: 0; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
     main { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
     .top { display: flex; align-items: center; gap: .75rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
-    .brand { font-weight: 700; font-size: 1.05rem; }
+    /* White backing keeps the logo's black wordmark readable in dark mode. */
+    .brand-logo { height: 28px; width: auto; background: #ffffff; padding: 5px 10px; border-radius: 6px; box-sizing: content-box; }
     .crumb { color: var(--muted); font-size: .95rem; }
     .intro { color: var(--muted); font-size: .9rem; margin: 1rem 0 1.5rem; }
     .banner { border: 1px solid var(--up-border); border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
