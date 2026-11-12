@@ -8,7 +8,6 @@ public class SiteMonitor : BackgroundService
     private readonly HttpClient _http;
     private readonly MonitorOptions _options;
     private readonly HistoryStore _history;
-    private readonly MaintenanceStore _maintenance;
     private readonly AlertService _alerts;
     private readonly ILogger<SiteMonitor> _logger;
 
@@ -16,14 +15,12 @@ public class SiteMonitor : BackgroundService
         IHttpClientFactory httpClientFactory,
         IOptions<MonitorOptions> options,
         HistoryStore history,
-        MaintenanceStore maintenance,
         AlertService alerts,
         ILogger<SiteMonitor> logger)
     {
         _http = httpClientFactory.CreateClient("monitor");
         _options = options.Value;
         _history = history;
-        _maintenance = maintenance;
         _alerts = alerts;
         _logger = logger;
     }
@@ -97,5 +94,5 @@ public class SiteMonitor : BackgroundService
         body.Contains(expected, StringComparison.OrdinalIgnoreCase);
 
     private bool InMaintenance(SiteConfig site) =>
-        Maintenance.IsActive(_maintenance.All(), site.Name, DateTimeOffset.UtcNow);
+        Maintenance.IsActive(_options.Maintenance, site.Name, DateTimeOffset.UtcNow);
 }
