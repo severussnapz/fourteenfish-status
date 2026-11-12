@@ -84,15 +84,18 @@ export Alerts__Password="..."
 export Alerts__Enabled=true
 ```
 
-## Deploying to Render (free tier)
+## Deploying to Render (Starter plan)
 
 1. Sign in at https://render.com with GitHub and choose **New > Web Service**.
-2. Select the `fourteenfish/fourteenfish-status` repository. Render detects the `Dockerfile`.
-3. Choose the **Free** instance type and leave the Docker settings as they are.
-4. Under **Environment**, add `Alerts__Password` with the Gmail App Password and `Alerts__Enabled=true` when you want alerts live.
-5. Deploy. Render gives a public `*.onrender.com` URL.
+2. Select the `severussnapz/fourteenfish-status` repository. Render detects the `Dockerfile`.
+3. Choose the **Starter** instance type ($7/month) and leave the Docker settings as they are.
+4. Under **Disks**, add a disk mounted at `/data`. The free plan has no disks.
+5. Under **Environment**, set `Monitor__HistoryFile` to `/data/history.jsonl` so history survives restarts. Add `Alerts__Password` with the Gmail App Password and `Alerts__Enabled=true` when you want alerts live.
+6. Deploy. Render gives a public `*.onrender.com` URL.
 
-Free instances sleep after 15 minutes without traffic, which pauses checks, and the local history file is lost on restart. Both are acceptable for testing only.
+Every push to `main` triggers a redeploy, so changes to `appsettings.json` (including planned maintenance) go live on the next deploy. The history file lives on the disk, so it survives those redeploys.
+
+Without a disk, history is lost on every restart. The free plan also sleeps after 15 minutes without traffic, which pauses checks, so use it for testing only.
 
 ## Testing
 
