@@ -13,6 +13,22 @@ It polls each site every 5 minutes, keeps 30 days of history, and serves:
 
 A site is **up** when it responds with an HTTP status below 500.
 
+## How it works
+
+**Checks.** When the app starts it checks all sites straight away, then repeats every `IntervalMinutes` (5). Each check sends a GET request to the site's URL with a `TimeoutSeconds` (10) limit. A check is **down** if the request fails or times out, if the status is 500 or higher, or if `Expect` is set and the text is missing from the body. Otherwise it is **up**. Each check is saved as one line in the history file, and the sites are checked in parallel.
+
+**History.** Results are written to `HistoryFile` (`history.jsonl`) and reloaded on startup. Results older than `RetentionDays` (30) are removed, and the file is rewritten when that happens.
+
+**Uptime.** Uptime is the percentage of up checks. The 24-hour and 30-day figures use the last 24 hours and 30 days of checks. Each day bar on the page shows the uptime for one UTC day. A day with no checks is shown empty. The average response time covers the last 24 hours.
+
+**Incidents.** A run of consecutive down checks for one site forms one incident. It starts at the first failed check and ends at the first successful check after it. An incident still open is shown as ongoing. Incidents are listed on the page and at `GET /api/incidents`.
+
+**Alerts.** Each site has a failure counter, which is kept in memory. When the counter reaches `FailuresBeforeAlert` (2), a DOWN email is sent. A recovery email is sent on the first up check after that. Alerts are not repeated while the site stays down. The counter resets when the app restarts, so a site that is still down after a restart sends a new DOWN email once it has failed the threshold again.
+
+**Maintenance.** Checks inside a maintenance window are still recorded, but they are left out of uptime, incidents, and alerts (see [Scheduled maintenance](#scheduled-maintenance)).
+
+**Storage.** Everything is stored in the history file. On Render this file must be on the persistent disk, or it is lost on every restart (see [Deploying to Render](#deploying-to-render-starter-plan)).
+
 ## Running
 
 Requires the .NET 8 SDK.
@@ -58,7 +74,7 @@ Add planned work under `Monitor:Maintenance` in `appsettings.json`:
 
 `Site` is a site name or `All`. `Start` is inclusive and `End` is exclusive, both in UTC.
 
-During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Planned maintenance" and marks affected sites as Maintenance. When nothing is scheduled, the panel says "Currently no planned maintenance." Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
+During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Planned maintenance" and marks affected sites as Maintenance. When nothing is scheduled, the panel says "Currently no planned maintenance." Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
 
 
 ## Email alerts
