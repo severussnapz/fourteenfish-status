@@ -68,7 +68,7 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses)
                 >= 95 => ("warn", $"{d.Uptime}%"),
                 _ => ("down", $"{d.Uptime}%"),
             };
-            return $"""<span class="bar {barClass}" title="{d.Date:yyyy-MM-dd}: {text}"></span>""";
+            return $"""<span class="bar {barClass}" tabindex="0" data-tip="{d.Date:yyyy-MM-dd}: {text}" aria-label="{d.Date:yyyy-MM-dd}: {text}"></span>""";
         }));
         return $"""
             <div class="row">
@@ -172,11 +172,15 @@ static class PageStyle
     .name { font-size: .95rem; }
     .meta { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .bars { display: flex; gap: 3px; height: 28px; }
-    .bar { flex: 1 1 0; min-width: 4px; border-radius: 2px; background: var(--none); }
+    .bar { position: relative; flex: 1 1 0; min-width: 4px; border-radius: 2px; background: var(--none); outline: none; }
     .bar.up { background: var(--up); }
     .bar.warn { background: var(--warn); }
     .bar.down { background: var(--down); }
-    .bar:hover { opacity: .75; }
+    .bar:hover, .bar:focus-visible { opacity: .75; }
+    .bar::after { content: attr(data-tip); display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1f2328; color: #ffffff; padding: .35rem .6rem; border-radius: 6px; font-size: .75rem; font-weight: 500; white-space: nowrap; z-index: 10; pointer-events: none; }
+    .bar:first-child::after { left: 0; transform: none; }
+    .bar:last-child::after { left: auto; right: 0; transform: none; }
+    .bar:hover::after, .bar:focus-visible::after { display: block; }
     .note { color: var(--muted); font-size: .8rem; margin-top: 1.25rem; text-align: center; }
     """;
 }
