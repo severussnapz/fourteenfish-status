@@ -14,6 +14,12 @@ public class HistoryStore
         _path = path;
         _retention = retention;
 
+        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         if (File.Exists(path))
         {
             foreach (var line in File.ReadLines(path))
