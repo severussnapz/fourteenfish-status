@@ -30,15 +30,28 @@ var app = builder.Build();
 app.MapGet("/api/status", (HistoryStore history) =>
     Results.Ok(StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow)));
 
+app.MapGet("/api/incidents", (HistoryStore history) =>
+    Results.Ok(StatusReport.Incidents(monitorOptions.Sites, history.All())));
+
 app.MapGet("/", (HistoryStore history) =>
 {
     var statuses = StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow);
-    return Results.Content(RenderPage(statuses), "text/html");
+    var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All());
+    return Results.Content(RenderPage(statuses, incidents), "text/html");
 });
 
 app.Run();
 
-static string RenderPage(IReadOnlyList<SiteStatus> statuses)
+static string FormatDuration(TimeSpan span)
+{
+    if (span.TotalHours >= 1)
+    {
+        return $"{(int)span.TotalHours} h {span.Minutes} min";
+    }
+    return $"{Math.Max(1, (int)span.TotalMinutes)} min";
+}
+
+static string RenderPage(IReadOnlyList<SiteStatus> statuses, IReadOnlyList<Incident> incidents)
 {
     var downCount = statuses.Count(s => s.Up == false);
     var unknownCount = statuses.Count(s => s.Up is null);
@@ -85,6 +98,23 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses)
     var latest = statuses.Where(s => s.CheckedAt is not null).Select(s => s.CheckedAt!.Value).DefaultIfEmpty().Max();
     var lastChecked = latest == default ? "never" : latest.ToString("yyyy-MM-dd HH:mm 'UTC'");
 
+    var incidentRows = incidents.Count == 0
+        ? """<div class="empty">No incidents in the last 30 days.</div>"""
+        : string.Join("\n", incidents.Take(10).Select(i =>
+        {
+            var duration = i.End is { } end ? FormatDuration(end - i.Start) : "Ongoing";
+            var state = i.End is null ? "down" : "resolved";
+            return $"""
+                <div class="incident">
+                  <span class="dot {state}"></span>
+                  <div class="incident-body">
+                    <div class="incident-title">{WebUtility.HtmlEncode(i.Site)}: {WebUtility.HtmlEncode(i.Cause)}</div>
+                    <div class="incident-meta">{i.Start:yyyy-MM-dd HH:mm} UTC · {duration}</div>
+                  </div>
+                </div>
+                """;
+        }));
+
     return $$"""
         <!DOCTYPE html>
         <html lang="en">
@@ -114,6 +144,14 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses)
                 <span class="range">Last 30 days</span>
               </div>
               {{rows}}
+            </section>
+
+            <section class="panel incidents">
+              <div class="panel-head">
+                <span>Recent incidents</span>
+                <span class="range">Last 30 days</span>
+              </div>
+              {{incidentRows}}
             </section>
 
             <p class="note">Last checked {{lastChecked}}. Refreshes automatically every 60 seconds.</p>
@@ -182,6 +220,14 @@ static class PageStyle
     .bar:last-child::after { left: auto; right: 0; transform: none; }
     .bar:hover::after, .bar:focus-visible::after { display: block; }
     .note { color: var(--muted); font-size: .8rem; margin-top: 1.25rem; text-align: center; }
+    .incidents { margin-top: 1.5rem; }
+    .incident { display: flex; gap: .75rem; align-items: flex-start; padding: .8rem 1rem; border-bottom: 1px solid var(--border); }
+    .incident:last-child { border-bottom: none; }
+    .incident .dot { width: 10px; height: 10px; margin-top: .45rem; }
+    .dot.resolved { background: var(--muted); }
+    .incident-title { font-size: .92rem; }
+    .incident-meta { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .empty { padding: 1rem; color: var(--muted); font-size: .9rem; }
     """;
 }
 

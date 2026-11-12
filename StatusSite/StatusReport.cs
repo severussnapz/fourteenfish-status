@@ -18,6 +18,37 @@ public static class StatusReport
         return list.Count == 0 ? null : Math.Round(list.Average(r => r.ElapsedMs), 0);
     }
 
+    // An incident is a run of failed checks for one site. It ends at the first successful check,
+    // so start and end times are accurate to the check interval.
+    public static IReadOnlyList<Incident> Incidents(
+        IEnumerable<SiteConfig> sites,
+        IReadOnlyList<CheckResult> history)
+    {
+        var incidents = new List<Incident>();
+        foreach (var site in sites)
+        {
+            Incident? open = null;
+            foreach (var result in history.Where(r => r.Site == site.Name).OrderBy(r => r.CheckedAt))
+            {
+                if (!result.Up && open is null)
+                {
+                    var cause = result.Error ?? $"HTTP {result.StatusCode}";
+                    open = new Incident(site.Name, result.CheckedAt, null, cause);
+                }
+                else if (result.Up && open is not null)
+                {
+                    incidents.Add(open with { End = result.CheckedAt });
+                    open = null;
+                }
+            }
+            if (open is not null)
+            {
+                incidents.Add(open);
+            }
+        }
+        return incidents.OrderByDescending(i => i.Start).ToList();
+    }
+
     public static IReadOnlyList<SiteStatus> Build(
         IEnumerable<SiteConfig> sites,
         IReadOnlyList<CheckResult> history,

@@ -23,6 +23,8 @@ public record SiteStatus(
 
 public record DayBar(DateOnly Date, double? Uptime);
 
+public record Incident(string Site, DateTimeOffset Start, DateTimeOffset? End, string Cause);
+
 public class AlertOptions
 {
     public bool Enabled { get; set; } = false;
