@@ -18,7 +18,10 @@ public record SiteStatus(
     int? StatusCode,
     double? Uptime24h,
     double? Uptime30d,
-    double? AvgResponseMs24h);
+    double? AvgResponseMs24h,
+    IReadOnlyList<DayBar> Days);
+
+public record DayBar(DateOnly Date, double? Uptime);
 
 public class AlertOptions
 {

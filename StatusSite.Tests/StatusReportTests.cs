@@ -55,4 +55,23 @@ public class StatusReportTests
         Assert.Null(status.Uptime24h);
         Assert.Null(status.AvgResponseMs24h);
     }
+
+    [Fact]
+    public void Build_ReturnsThirtyDailyBars_EndingToday()
+    {
+        var sites = new[] { new SiteConfig("FishBase", "https://fishbase.co.uk") };
+        var history = new[]
+        {
+            Check("FishBase", 1, true),
+            Check("FishBase", 2, false),
+            Check("FishBase", 26, true),
+        };
+
+        var days = StatusReport.Build(sites, history, Now).Single().Days;
+
+        Assert.Equal(30, days.Count);
+        Assert.Equal(DateOnly.FromDateTime(Now.UtcDateTime), days[^1].Date);
+        Assert.Equal(50.0, days[^1].Uptime);
+        Assert.Null(days[0].Uptime);
+    }
 }

@@ -33,6 +33,14 @@ public static class StatusReport
             var day = siteHistory.Where(r => r.CheckedAt >= last24h).ToList();
             var month = siteHistory.Where(r => r.CheckedAt >= last30d).ToList();
 
+            var today = DateOnly.FromDateTime(now.UtcDateTime);
+            var days = Enumerable.Range(0, 30)
+                .Select(i => today.AddDays(i - 29))
+                .Select(date => new DayBar(
+                    date,
+                    Uptime(siteHistory.Where(r => DateOnly.FromDateTime(r.CheckedAt.UtcDateTime) == date))))
+                .ToList();
+
             return new SiteStatus(
                 site.Name,
                 site.Url,
@@ -41,7 +49,8 @@ public static class StatusReport
                 latest?.StatusCode,
                 Uptime(day),
                 Uptime(month),
-                AverageResponseMs(day));
+                AverageResponseMs(day),
+                days);
         }).ToList();
     }
 }
