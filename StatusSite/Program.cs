@@ -129,28 +129,22 @@ static string RenderPage(
         }));
 
     var upcoming = Maintenance.Upcoming(maintenance, now);
-    var maintenanceSection = upcoming.Count == 0 ? "" : $"""
-            <section class="panel maintenance-panel">
-              <div class="panel-head">
-                <span>Scheduled maintenance</span>
-                <span class="range">Upcoming</span>
-              </div>
-              {string.Join("\n", upcoming.Take(10).Select(w =>
-              {
-                  var inProgress = w.Start <= now;
-                  var site = w.Site == Maintenance.AllSites ? "All sites" : WebUtility.HtmlEncode(w.Site);
-                  return $"""
-                    <div class="incident">
-                      <span class="dot maintenance"></span>
-                      <div class="incident-body">
-                        <div class="incident-title">{site}: {WebUtility.HtmlEncode(w.Message)}</div>
-                        <div class="incident-meta">{(inProgress ? "In progress" : "Scheduled")} · {w.Start.UtcDateTime:yyyy-MM-dd HH:mm} to {w.End.UtcDateTime:yyyy-MM-dd HH:mm} UTC</div>
-                      </div>
-                    </div>
-                    """;
-              }))}
-            </section>
-            """;
+    var maintenanceRows = upcoming.Count == 0
+        ? """<div class="empty">Currently no planned maintenance.</div>"""
+        : string.Join("\n", upcoming.Take(10).Select(w =>
+          {
+              var inProgress = w.Start <= now;
+              var site = w.Site == Maintenance.AllSites ? "All sites" : WebUtility.HtmlEncode(w.Site);
+              return $"""
+                <div class="incident">
+                  <span class="dot maintenance"></span>
+                  <div class="incident-body">
+                    <div class="incident-title">{site}: {WebUtility.HtmlEncode(w.Message)}</div>
+                    <div class="incident-meta">{(inProgress ? "In progress" : "Scheduled")} · {w.Start.UtcDateTime:yyyy-MM-dd HH:mm} to {w.End.UtcDateTime:yyyy-MM-dd HH:mm} UTC</div>
+                  </div>
+                </div>
+                """;
+          }));
 
     return $$"""
 
@@ -184,7 +178,13 @@ static string RenderPage(
               {{rows}}
             </section>
 
-            {{maintenanceSection}}
+            <section class="panel maintenance-panel">
+              <div class="panel-head">
+                <span>Planned maintenance</span>
+                <span class="range">Upcoming</span>
+              </div>
+              {{maintenanceRows}}
+            </section>
 
             <section class="panel incidents">
               <div class="panel-head">
@@ -268,7 +268,7 @@ static class PageStyle
     .bar:last-child::after { left: auto; right: 0; transform: none; }
     .bar:hover::after, .bar:focus-visible::after { display: block; }
     .note { color: var(--muted); font-size: .8rem; margin-top: 1.25rem; text-align: center; }
-    .incidents { margin-top: 1.5rem; }
+    .incidents, .maintenance-panel { margin-top: 1.5rem; }
     .incident { display: flex; gap: .75rem; align-items: flex-start; padding: .8rem 1rem; border-bottom: 1px solid var(--border); }
     .incident:last-child { border-bottom: none; }
     .incident .dot { width: 10px; height: 10px; margin-top: .45rem; }

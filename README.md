@@ -58,7 +58,7 @@ Add planned work under `Monitor:Maintenance` in `appsettings.json`:
 
 `Site` is a site name or `All`. `Start` is inclusive and `End` is exclusive, both in UTC.
 
-During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Scheduled maintenance" and marks affected sites as Maintenance. Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
+During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Planned maintenance" and marks affected sites as Maintenance. When nothing is scheduled, the panel says "Currently no planned maintenance." Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
 
 
 ## Email alerts
