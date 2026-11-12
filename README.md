@@ -58,6 +58,16 @@ export Alerts__Password="..."
 export Alerts__Enabled=true
 ```
 
+## Deploying to Render (free tier)
+
+1. Sign in at https://render.com with GitHub and choose **New > Web Service**.
+2. Select the `fourteenfish/fourteenfish-status` repository. Render detects the `Dockerfile`.
+3. Choose the **Free** instance type and leave the Docker settings as they are.
+4. Under **Environment**, add `Alerts__Password` with the Gmail App Password and `Alerts__Enabled=true` when you want alerts live.
+5. Deploy. Render gives a public `*.onrender.com` URL.
+
+Free instances sleep after 15 minutes without traffic, which pauses checks, and the local history file is lost on restart. Both are acceptable for testing only.
+
 ## Testing
 
 ```bash
