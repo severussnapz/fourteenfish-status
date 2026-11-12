@@ -10,6 +10,13 @@ builder.Services.AddSingleton(_ => new HistoryStore(
     monitorOptions.HistoryFile,
     TimeSpan.FromDays(monitorOptions.RetentionDays)));
 builder.Services.AddHttpClient("monitor");
+
+builder.Services.Configure<AlertOptions>(builder.Configuration.GetSection("Alerts"));
+var alertOptions = builder.Configuration.GetSection("Alerts").Get<AlertOptions>() ?? new AlertOptions();
+builder.Services.AddSingleton(_ => new AlertTracker(alertOptions.FailuresBeforeAlert));
+builder.Services.AddSingleton<IAlertSender, EmailAlertSender>();
+builder.Services.AddSingleton<AlertService>();
+
 builder.Services.AddHostedService<SiteMonitor>();
 
 var app = builder.Build();
@@ -57,7 +64,7 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses)
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta http-equiv="refresh" content="60">
           <title>FourteenFish Status</title>
-      <style>{{Css}}</style>
+      <style>{{PageStyle.Css}}</style>
     </head>
     <body>
       <h1>FourteenFish Status</h1>

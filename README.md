@@ -35,6 +35,29 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`) |
 
+## Email alerts
+
+Alerts are off by default. Configure them under `Alerts` in `appsettings.json`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `Enabled` | `false` | Turn email alerts on |
+| `FailuresBeforeAlert` | `2` | Consecutive failed checks before a DOWN alert |
+| `SmtpHost` / `SmtpPort` | empty / `587` | SMTP server |
+| `UseStartTls` | `true` | Use STARTTLS |
+| `Username` / `Password` | empty | SMTP credentials |
+| `From` | empty | Sender address |
+| `Recipients` | `[]` | Addresses to notify |
+
+A DOWN alert is sent once when a site reaches the failure threshold, and a recovery alert is sent when it comes back up. Alerts are not repeated while a site stays down.
+
+Keep the SMTP password out of source control. Supply it through an environment variable instead:
+
+```bash
+export Alerts__Password="..."
+export Alerts__Enabled=true
+```
+
 ## Testing
 
 ```bash

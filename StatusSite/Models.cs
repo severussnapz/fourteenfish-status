@@ -20,6 +20,19 @@ public record SiteStatus(
     double? Uptime30d,
     double? AvgResponseMs24h);
 
+public class AlertOptions
+{
+    public bool Enabled { get; set; } = false;
+    public int FailuresBeforeAlert { get; set; } = 2;
+    public string SmtpHost { get; set; } = "";
+    public int SmtpPort { get; set; } = 587;
+    public bool UseStartTls { get; set; } = true;
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string From { get; set; } = "";
+    public List<string> Recipients { get; set; } = new();
+}
+
 public class MonitorOptions
 {
     public int IntervalMinutes { get; set; } = 5;

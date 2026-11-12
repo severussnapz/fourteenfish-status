@@ -8,17 +8,20 @@ public class SiteMonitor : BackgroundService
     private readonly HttpClient _http;
     private readonly MonitorOptions _options;
     private readonly HistoryStore _history;
+    private readonly AlertService _alerts;
     private readonly ILogger<SiteMonitor> _logger;
 
     public SiteMonitor(
         IHttpClientFactory httpClientFactory,
         IOptions<MonitorOptions> options,
         HistoryStore history,
+        AlertService alerts,
         ILogger<SiteMonitor> logger)
     {
         _http = httpClientFactory.CreateClient("monitor");
         _options = options.Value;
         _history = history;
+        _alerts = alerts;
         _logger = logger;
     }
 
@@ -41,6 +44,7 @@ public class SiteMonitor : BackgroundService
             _history.Add(result);
             _logger.LogInformation("{Site}: {State} ({ElapsedMs} ms)",
                 result.Site, result.Up ? "up" : "down", result.ElapsedMs);
+            await _alerts.HandleAsync(result, ct);
         }
     }
 
