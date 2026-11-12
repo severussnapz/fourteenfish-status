@@ -8,7 +8,8 @@ public record CheckResult(
     bool Up,
     int? StatusCode,
     long ElapsedMs,
-    string? Error);
+    string? Error,
+    bool InMaintenance = false);
 
 public record SiteStatus(
     string Name,
@@ -24,6 +25,9 @@ public record SiteStatus(
 public record DayBar(DateOnly Date, double? Uptime);
 
 public record Incident(string Site, DateTimeOffset Start, DateTimeOffset? End, string Cause);
+
+// Site is a configured site name, or "All" to cover every site. End is exclusive.
+public record MaintenanceWindow(string Site, DateTimeOffset Start, DateTimeOffset End, string Message);
 
 public class AlertOptions
 {
@@ -45,4 +49,5 @@ public class MonitorOptions
     public int RetentionDays { get; set; } = 30;
     public string HistoryFile { get; set; } = "history.jsonl";
     public List<SiteConfig> Sites { get; set; } = new();
+    public List<MaintenanceWindow> Maintenance { get; set; } = new();
 }

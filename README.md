@@ -34,6 +34,22 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `RetentionDays` | `30` | How long history is kept |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`) |
+| `Maintenance` | `[]` | Planned maintenance windows (see below) |
+
+## Scheduled maintenance
+
+Add planned work under `Monitor:Maintenance` in `appsettings.json`:
+
+```json
+"Maintenance": [
+  { "Site": "All", "Start": "2026-11-20T22:00:00Z", "End": "2026-11-20T23:00:00Z", "Message": "Database upgrade" }
+]
+```
+
+`Site` is a site name or `All`. `Start` is inclusive and `End` is exclusive, both in UTC.
+
+During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Scheduled maintenance" and marks affected sites as Maintenance. Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
+
 
 ## Email alerts
 

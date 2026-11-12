@@ -42,9 +42,13 @@ public class SiteMonitor : BackgroundService
         foreach (var result in results)
         {
             _history.Add(result);
-            _logger.LogInformation("{Site}: {State} ({ElapsedMs} ms)",
-                result.Site, result.Up ? "up" : "down", result.ElapsedMs);
-            await _alerts.HandleAsync(result, ct);
+            _logger.LogInformation("{Site}: {State} ({ElapsedMs} ms){Maintenance}",
+                result.Site, result.Up ? "up" : "down", result.ElapsedMs,
+                result.InMaintenance ? " [maintenance]" : "");
+            if (!result.InMaintenance)
+            {
+                await _alerts.HandleAsync(result, ct);
+            }
         }
     }
 
@@ -61,12 +65,15 @@ public class SiteMonitor : BackgroundService
             stopwatch.Stop();
 
             var code = (int)response.StatusCode;
-            return new CheckResult(site.Name, DateTimeOffset.UtcNow, code < 500, code, stopwatch.ElapsedMilliseconds, null);
+            return new CheckResult(site.Name, DateTimeOffset.UtcNow, code < 500, code, stopwatch.ElapsedMilliseconds, null, InMaintenance(site));
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or TaskCanceledException)
         {
             stopwatch.Stop();
-            return new CheckResult(site.Name, DateTimeOffset.UtcNow, false, null, stopwatch.ElapsedMilliseconds, ex.Message);
+            return new CheckResult(site.Name, DateTimeOffset.UtcNow, false, null, stopwatch.ElapsedMilliseconds, ex.Message, InMaintenance(site));
         }
     }
+
+    private bool InMaintenance(SiteConfig site) =>
+        Maintenance.IsActive(_options.Maintenance, site.Name, DateTimeOffset.UtcNow);
 }

@@ -4,7 +4,7 @@ public static class StatusReport
 {
     public static double? Uptime(IEnumerable<CheckResult> results)
     {
-        var list = results.ToList();
+        var list = results.Where(r => !r.InMaintenance).ToList();
         if (list.Count == 0)
         {
             return null;
@@ -28,7 +28,7 @@ public static class StatusReport
         foreach (var site in sites)
         {
             Incident? open = null;
-            foreach (var result in history.Where(r => r.Site == site.Name).OrderBy(r => r.CheckedAt))
+            foreach (var result in history.Where(r => r.Site == site.Name && !r.InMaintenance).OrderBy(r => r.CheckedAt))
             {
                 if (!result.Up && open is null)
                 {

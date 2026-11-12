@@ -33,11 +33,15 @@ app.MapGet("/api/status", (HistoryStore history) =>
 app.MapGet("/api/incidents", (HistoryStore history) =>
     Results.Ok(StatusReport.Incidents(monitorOptions.Sites, history.All())));
 
+app.MapGet("/api/maintenance", () =>
+    Results.Ok(Maintenance.Upcoming(monitorOptions.Maintenance, DateTimeOffset.UtcNow)));
+
 app.MapGet("/", (HistoryStore history) =>
 {
     var statuses = StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow);
     var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All());
-    return Results.Content(RenderPage(statuses, incidents), "text/html");
+    var now = DateTimeOffset.UtcNow;
+    return Results.Content(RenderPage(statuses, incidents, monitorOptions.Maintenance, now), "text/html");
 });
 
 app.Run();
@@ -51,14 +55,21 @@ static string FormatDuration(TimeSpan span)
     return $"{Math.Max(1, (int)span.TotalMinutes)} min";
 }
 
-static string RenderPage(IReadOnlyList<SiteStatus> statuses, IReadOnlyList<Incident> incidents)
+static string RenderPage(
+    IReadOnlyList<SiteStatus> statuses,
+    IReadOnlyList<Incident> incidents,
+    IReadOnlyList<MaintenanceWindow> maintenance,
+    DateTimeOffset now)
 {
-    var downCount = statuses.Count(s => s.Up == false);
-    var unknownCount = statuses.Count(s => s.Up is null);
-    var (bannerClass, bannerTitle, bannerBody) = (downCount, unknownCount) switch
+    var inMaintenance = statuses.ToDictionary(s => s.Name, s => Maintenance.IsActive(maintenance, s.Name, now));
+    var maintenanceCount = inMaintenance.Count(kv => kv.Value);
+    var downCount = statuses.Count(s => s.Up == false && !inMaintenance[s.Name]);
+    var unknownCount = statuses.Count(s => s.Up is null && !inMaintenance[s.Name]);
+    var (bannerClass, bannerTitle, bannerBody) = (downCount, maintenanceCount, unknownCount) switch
     {
-        (> 0, _) => ("down", "Some systems are down", $"{downCount} of {statuses.Count} sites are not responding."),
-        (0, > 0) => ("unknown", "Waiting for the first checks", "Results will appear after the first round of checks."),
+        (> 0, _, _) => ("down", "Some systems are down", $"{downCount} of {statuses.Count} sites are not responding."),
+        (0, > 0, _) => ("maintenance", "Scheduled maintenance in progress", $"{maintenanceCount} of {statuses.Count} sites are under planned maintenance."),
+        (0, 0, > 0) => ("unknown", "Waiting for the first checks", "Results will appear after the first round of checks."),
         _ => ("up", "We’re fully operational", "We’re not aware of any issues affecting our systems."),
     };
 
@@ -66,7 +77,7 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses, IReadOnlyList<Incid
 
     var rows = string.Join("\n", statuses.Select(s =>
     {
-        var (label, css) = s.Up switch
+        var (label, css) = inMaintenance[s.Name] ? ("Maintenance", "maintenance") : s.Up switch
         {
             true => ("Operational", "up"),
             false => ("Down", "down"),
@@ -115,7 +126,32 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses, IReadOnlyList<Incid
                 """;
         }));
 
+    var upcoming = Maintenance.Upcoming(maintenance, now);
+    var maintenanceSection = upcoming.Count == 0 ? "" : $"""
+            <section class="panel maintenance-panel">
+              <div class="panel-head">
+                <span>Scheduled maintenance</span>
+                <span class="range">Upcoming</span>
+              </div>
+              {string.Join("\n", upcoming.Take(10).Select(w =>
+              {
+                  var inProgress = w.Start <= now;
+                  var site = w.Site == Maintenance.AllSites ? "All sites" : WebUtility.HtmlEncode(w.Site);
+                  return $"""
+                    <div class="incident">
+                      <span class="dot maintenance"></span>
+                      <div class="incident-body">
+                        <div class="incident-title">{site}: {WebUtility.HtmlEncode(w.Message)}</div>
+                        <div class="incident-meta">{(inProgress ? "In progress" : "Scheduled")} · {w.Start.UtcDateTime:yyyy-MM-dd HH:mm} to {w.End.UtcDateTime:yyyy-MM-dd HH:mm} UTC</div>
+                      </div>
+                    </div>
+                    """;
+              }))}
+            </section>
+            """;
+
     return $$"""
+
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -146,6 +182,8 @@ static string RenderPage(IReadOnlyList<SiteStatus> statuses, IReadOnlyList<Incid
               {{rows}}
             </section>
 
+            {{maintenanceSection}}
+
             <section class="panel incidents">
               <div class="panel-head">
                 <span>Recent incidents</span>
@@ -169,12 +207,14 @@ static class PageStyle
       --up: #2fbf8a; --up-bg: #d9f7ee; --up-border: #5dd5a8;
       --warn: #f5a524; --down: #f0655b; --down-bg: #fdecea; --down-border: #f5a6a0;
       --none: #e5e7eb; --unknown: #8a8f98; --unknown-bg: #f1f2f4;
+      --maint: #3b82f6; --maint-bg: #e8f1ff; --maint-border: #93c5fd;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #0f1115; --text: #e6edf3; --muted: #8d96a0; --border: #2a2f37; --panel: #161a20;
         --up-bg: #12261e; --up-border: #2a7a5a; --down-bg: #2d1619; --down-border: #7a2d2a;
         --none: #2a2f37; --unknown-bg: #1f232b;
+        --maint-bg: #13203a; --maint-border: #2a4f8a;
       }
     }
     * { box-sizing: border-box; }
@@ -190,6 +230,11 @@ static class PageStyle
     .banner.down { border-color: var(--down-border); }
     .banner.down .banner-head { background: var(--down-bg); }
     .banner.down .banner-body { border-top-color: var(--down-border); }
+    .banner.maintenance { border-color: var(--maint-border); }
+    .banner.maintenance .banner-head { background: var(--maint-bg); }
+    .banner.maintenance .banner-body { border-top-color: var(--maint-border); }
+    .banner.maintenance .icon { fill: var(--maint); }
+    .dot.maintenance { background: var(--maint); }
     .banner.unknown { border-color: var(--border); }
     .banner.unknown .banner-head { background: var(--unknown-bg); color: var(--unknown); }
     .banner.unknown .banner-body { border-top-color: var(--border); }
