@@ -34,7 +34,8 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `RetentionDays` | `30` | How long history is kept |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
-| `Maintenance` | `[]` | Planned maintenance windows (see below) |
+| `Maintenance` | `[]` | Planned maintenance windows in config (see below) |
+| `MaintenanceFile` | `maintenance.json` | Where windows added from the admin page are saved |
 
 ### Content checks
 
@@ -58,7 +59,28 @@ Add planned work under `Monitor:Maintenance` in `appsettings.json`:
 
 `Site` is a site name or `All`. `Start` is inclusive and `End` is exclusive, both in UTC.
 
-During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Planned maintenance" and marks affected sites as Maintenance. When nothing is scheduled, the panel says "Currently no planned maintenance." Maintenance windows are read from configuration, so a change needs a redeploy. The upcoming windows are also available at `/api/maintenance`.
+During a window the sites are still checked, but those checks are excluded from uptime, incidents, and alerts. The page shows the window under "Planned maintenance" and marks affected sites as Maintenance. When nothing is scheduled, the panel says "Currently no planned maintenance." The upcoming windows are also available at `/api/maintenance`.
+
+Windows in `appsettings.json` need a redeploy to change. Windows added from the admin page are saved to `Monitor:MaintenanceFile` (default `maintenance.json`) and take effect immediately.
+
+## Admin page
+
+`/admin` lets you schedule and delete planned maintenance without a redeploy. Sign-in uses GitHub and only the account named in `Admin:GitHubLogin` (default `severussnapz`) is allowed in. The page is hidden until both `Auth:GitHub:ClientId` and `Auth:GitHub:ClientSecret` are set.
+
+Create a GitHub OAuth App at https://github.com/settings/developers with:
+
+- **Homepage URL:** the site URL, for example `https://fourteenfish-status.onrender.com`
+- **Authorization callback URL:** the same site URL with `/signin-github` added
+
+Then set these environment variables on the host:
+
+```bash
+Auth__GitHub__ClientId="..."
+Auth__GitHub__ClientSecret="..."
+Monitor__MaintenanceFile="/data/maintenance.json"
+```
+
+Saved windows are stored in a JSON file, so on Render the file needs a persistent disk (see below). Times on the form are UTC.
 
 
 ## Email alerts
@@ -93,6 +115,10 @@ export Alerts__Enabled=true
 5. Deploy. Render gives a public `*.onrender.com` URL.
 
 Free instances sleep after 15 minutes without traffic, which pauses checks, and the local history file is lost on restart. Both are acceptable for testing only.
+
+To keep history and admin-scheduled maintenance across restarts, use the Starter plan ($7/month) and add a persistent disk mounted at `/data`. Then set `Monitor__HistoryFile=/data/history.jsonl` and `Monitor__MaintenanceFile=/data/maintenance.json`.
+
+For the admin page, also add `Admin__GitHubLogin`, `Auth__GitHub__ClientId`, and `Auth__GitHub__ClientSecret` as described above.
 
 ## Testing
 

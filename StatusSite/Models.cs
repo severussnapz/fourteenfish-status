@@ -49,6 +49,7 @@ public class MonitorOptions
     public int TimeoutSeconds { get; set; } = 10;
     public int RetentionDays { get; set; } = 30;
     public string HistoryFile { get; set; } = "history.jsonl";
+    public string MaintenanceFile { get; set; } = "maintenance.json";
     public List<SiteConfig> Sites { get; set; } = new();
     public List<MaintenanceWindow> Maintenance { get; set; } = new();
 }

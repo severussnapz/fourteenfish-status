@@ -1,4 +1,10 @@
 using System.Net;
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using StatusSite;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,9 +31,71 @@ builder.Services.AddSingleton<AlertService>();
 
 builder.Services.AddHostedService<SiteMonitor>();
 
+builder.Services.AddSingleton(_ => new MaintenanceStore(monitorOptions.MaintenanceFile, monitorOptions.Maintenance));
+
+// Render terminates TLS in front of the app, so trust its forwarded scheme for the OAuth redirect URI.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.Services.AddAntiforgery();
+
+var adminLogin = builder.Configuration["Admin:GitHubLogin"];
+var gitHubClientId = builder.Configuration["Auth:GitHub:ClientId"];
+var gitHubClientSecret = builder.Configuration["Auth:GitHub:ClientSecret"];
+var adminEnabled = !string.IsNullOrWhiteSpace(adminLogin)
+    && !string.IsNullOrWhiteSpace(gitHubClientId)
+    && !string.IsNullOrWhiteSpace(gitHubClientSecret);
+
+var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/admin/login";
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+    });
+
+if (adminEnabled)
+{
+    authBuilder.AddOAuth("GitHub", options =>
+    {
+        options.ClientId = gitHubClientId!;
+        options.ClientSecret = gitHubClientSecret!;
+        options.CallbackPath = "/signin-github";
+        options.AuthorizationEndpoint = "https://github.com/login/oauth/authorize";
+        options.TokenEndpoint = "https://github.com/login/oauth/access_token";
+        options.UserInformationEndpoint = "https://api.github.com/user";
+        options.Scope.Add("read:user");
+        options.ClaimActions.MapJsonKey("urn:github:login", "login");
+        options.Events.OnCreatingTicket = async context =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, context.Options.UserInformationEndpoint);
+            request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.UserAgent.ParseAdd("fourteenfish-status");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", context.AccessToken);
+            using var response = await context.Backchannel.SendAsync(request, context.HttpContext.RequestAborted);
+            response.EnsureSuccessStatusCode();
+            using var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync(context.HttpContext.RequestAborted));
+            context.RunClaimActions(user.RootElement);
+        };
+    });
+}
+
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("Admin", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+            string.Equals(context.User.FindFirst("urn:github:login")?.Value, adminLogin, StringComparison.OrdinalIgnoreCase))));
+
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/api/status", (HistoryStore history) =>
     Results.Ok(StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow)));
@@ -35,18 +103,75 @@ app.MapGet("/api/status", (HistoryStore history) =>
 app.MapGet("/api/incidents", (HistoryStore history) =>
     Results.Ok(StatusReport.Incidents(monitorOptions.Sites, history.All())));
 
-app.MapGet("/api/maintenance", () =>
-    Results.Ok(Maintenance.Upcoming(monitorOptions.Maintenance, DateTimeOffset.UtcNow)));
+app.MapGet("/api/maintenance", (MaintenanceStore maintenance) =>
+    Results.Ok(Maintenance.Upcoming(maintenance.All(), DateTimeOffset.UtcNow)));
 
-app.MapGet("/", (HistoryStore history) =>
+app.MapGet("/", (HistoryStore history, MaintenanceStore maintenance) =>
 {
     var statuses = StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow);
     var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All());
     var now = DateTimeOffset.UtcNow;
-    return Results.Content(RenderPage(statuses, incidents, monitorOptions.Maintenance, now), "text/html");
+    return Results.Content(RenderPage(statuses, incidents, maintenance.All(), now), "text/html");
 });
 
+if (adminEnabled)
+{
+    app.MapGet("/admin/login", () => Results.Challenge(
+        new AuthenticationProperties { RedirectUri = "/admin" },
+        new[] { "GitHub" }));
+
+    app.MapGet("/admin/logout", async (HttpContext http) =>
+    {
+        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Results.Redirect("/");
+    });
+
+    app.MapGet("/admin", (HttpContext http, IAntiforgery antiforgery, MaintenanceStore maintenance) =>
+        Results.Content(AdminHtml(http, antiforgery, maintenance, monitorOptions.Sites), "text/html"))
+        .RequireAuthorization("Admin");
+
+    app.MapPost("/admin/maintenance", async (HttpContext http, IAntiforgery antiforgery, MaintenanceStore maintenance) =>
+    {
+        if (!await antiforgery.IsRequestValidAsync(http))
+        {
+            return Results.BadRequest("Your session has expired. Reload the admin page and try again.");
+        }
+
+        var form = await http.Request.ReadFormAsync();
+        var window = AdminForm.TryCreate(form["site"], form["start"], form["end"], form["message"], monitorOptions.Sites, out var error);
+        if (window is null)
+        {
+            return Results.Content(AdminHtml(http, antiforgery, maintenance, monitorOptions.Sites, error), "text/html", statusCode: 400);
+        }
+
+        maintenance.Add(window, DateTimeOffset.UtcNow);
+        return Results.Redirect("/admin");
+    }).RequireAuthorization("Admin");
+
+    app.MapPost("/admin/maintenance/{id:guid}/delete", async (Guid id, HttpContext http, IAntiforgery antiforgery, MaintenanceStore maintenance) =>
+    {
+        if (!await antiforgery.IsRequestValidAsync(http))
+        {
+            return Results.BadRequest("Your session has expired. Reload the admin page and try again.");
+        }
+
+        maintenance.Remove(id);
+        return Results.Redirect("/admin");
+    }).RequireAuthorization("Admin");
+}
+
 app.Run();
+
+static string AdminHtml(
+    HttpContext http,
+    IAntiforgery antiforgery,
+    MaintenanceStore maintenance,
+    IReadOnlyList<SiteConfig> sites,
+    string? error = null)
+{
+    var token = antiforgery.GetAndStoreTokens(http).RequestToken ?? "";
+    return AdminPage.Render(sites, maintenance, token, DateTimeOffset.UtcNow, error);
+}
 
 static string FormatDuration(TimeSpan span)
 {
