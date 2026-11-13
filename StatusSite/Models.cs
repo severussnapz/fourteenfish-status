@@ -46,7 +46,7 @@ public class AlertOptions
 public class MonitorOptions
 {
     public int IntervalMinutes { get; set; } = 5;
-    public int TimeoutSeconds { get; set; } = 30;
+    public int TimeoutSeconds { get; set; } = 60;
     public int RetentionDays { get; set; } = 30;
     public string HistoryFile { get; set; } = "history.jsonl";
     public List<SiteConfig> Sites { get; set; } = new();
