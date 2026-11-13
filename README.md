@@ -15,7 +15,7 @@ A site is **up** when it responds with an HTTP status below 500.
 
 ## How it works
 
-**Checks.** When the app starts it checks all sites straight away, then repeats every `IntervalMinutes` (5). Each check sends a GET request to the site's URL with a `TimeoutSeconds` (10) limit. A check is **down** if the request fails or times out, if the status is 500 or higher, or if `Expect` is set and the text is missing from the body. Otherwise it is **up**. Each check is saved as one line in the history file, and the sites are checked in parallel.
+**Checks.** When the app starts it checks all sites straight away, then repeats every `IntervalMinutes` (5). Each check sends a GET request to the site's URL with a `TimeoutSeconds` (30) limit. A check is **down** if the request fails or times out, if the status is 500 or higher, or if `Expect` is set and the text is missing from the body. Otherwise it is **up**. Each check is saved as one line in the history file, and the sites are checked in parallel.
 
 **History.** Results are written to `HistoryFile` (`history.jsonl`) and reloaded on startup. Results older than `RetentionDays` (30) are removed, and the file is rewritten when that happens.
 
@@ -46,7 +46,7 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `IntervalMinutes` | `5` | How often to check each site |
-| `TimeoutSeconds` | `10` | Request timeout per check |
+| `TimeoutSeconds` | `30` | How long a check can take before the site counts as down |
 | `RetentionDays` | `30` | How long history is kept |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
