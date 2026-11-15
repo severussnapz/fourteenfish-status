@@ -99,6 +99,38 @@ public class IncidentTests
     }
 
     [Fact]
+    public void Build_IgnoresSingleFailedCheck_InUptime_WhenMinimumIsTwo()
+    {
+        var history = new[]
+        {
+            Check(20, true),
+            Check(15, false, "timeout"),
+            Check(10, true),
+            Check(5, true),
+        };
+
+        var status = Assert.Single(StatusReport.Build(new[] { Site }, history, Now, minimumFailures: 2));
+
+        Assert.Equal(100, status.Uptime24h);
+    }
+
+    [Fact]
+    public void Build_CountsSingleFailedCheck_InUptime_WhenMinimumIsOne()
+    {
+        var history = new[]
+        {
+            Check(20, true),
+            Check(15, false, "timeout"),
+            Check(10, true),
+            Check(5, true),
+        };
+
+        var status = Assert.Single(StatusReport.Build(new[] { Site }, history, Now, minimumFailures: 1));
+
+        Assert.Equal(75, status.Uptime24h);
+    }
+
+    [Fact]
     public void Incidents_ReturnsNewestFirst()
     {
         var other = new SiteConfig("Other", "https://other.test");

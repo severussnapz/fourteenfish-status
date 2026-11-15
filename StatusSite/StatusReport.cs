@@ -56,18 +56,49 @@ public static class StatusReport
     private static string Cause(CheckResult failure) =>
         failure.Error ?? $"HTTP {failure.StatusCode}";
 
+    // Failed checks that are not part of a run of at least `minimumFailures` are dropped entirely,
+    // so one-off blips count neither for nor against uptime. Maintenance checks are ignored as they are for incidents.
+    public static IReadOnlyList<CheckResult> WithoutBlips(IEnumerable<CheckResult> results, int minimumFailures)
+    {
+        var kept = new List<CheckResult>();
+        var run = new List<CheckResult>();
+        foreach (var result in results.Where(r => !r.InMaintenance).OrderBy(r => r.CheckedAt))
+        {
+            if (!result.Up)
+            {
+                run.Add(result);
+                continue;
+            }
+
+            if (run.Count >= minimumFailures)
+            {
+                kept.AddRange(run);
+            }
+            run.Clear();
+            kept.Add(result);
+        }
+
+        if (run.Count >= minimumFailures)
+        {
+            kept.AddRange(run);
+        }
+        return kept;
+    }
+
     public static IReadOnlyList<SiteStatus> Build(
         IEnumerable<SiteConfig> sites,
         IReadOnlyList<CheckResult> history,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        int minimumFailures = 1)
     {
         var last24h = now.AddHours(-24);
         var last30d = now.AddDays(-30);
 
         return sites.Select(site =>
         {
-            var siteHistory = history.Where(r => r.Site == site.Name).ToList();
-            var latest = siteHistory.OrderBy(r => r.CheckedAt).LastOrDefault();
+            var allSiteHistory = history.Where(r => r.Site == site.Name).ToList();
+            var latest = allSiteHistory.OrderBy(r => r.CheckedAt).LastOrDefault();
+            var siteHistory = WithoutBlips(allSiteHistory, minimumFailures);
             var day = siteHistory.Where(r => r.CheckedAt >= last24h).ToList();
             var month = siteHistory.Where(r => r.CheckedAt >= last30d).ToList();
 

@@ -19,7 +19,7 @@ A site is **up** when it responds with an HTTP status below 500.
 
 **History.** Results are written to `HistoryFile` (`history.jsonl`) and reloaded on startup. Results older than `RetentionDays` (30) are removed, and the file is rewritten when that happens.
 
-**Uptime.** Uptime is the percentage of up checks. The 24-hour and 30-day figures use the last 24 hours and 30 days of checks. Each day bar on the page shows the uptime for one UTC day. A day with no checks is shown empty. The average response time covers the last 24 hours.
+**Uptime.** Uptime is the percentage of up checks. The 24-hour and 30-day figures use the last 24 hours and 30 days of checks. Each day bar on the page shows the uptime for one UTC day. A day with no checks is shown empty. The average response time covers the last 24 hours. Single failed checks (see `FailuresBeforeIncident` below) are left out of the uptime figures, so one-off blips don't lower them.
 
 **Incidents.** A run of consecutive down checks for one site forms one incident, but only once the run reaches `FailuresBeforeIncident` checks (2 by default). A single failed check is ignored, so one-off blips don't appear in the log. The incident starts at the first failed check in the run and ends at the first successful check after it. An incident still open is shown as ongoing. Incidents are listed on the page and at `GET /api/incidents`.
 
@@ -48,7 +48,7 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `IntervalMinutes` | `5` | How often to check each site |
 | `TimeoutSeconds` | `60` | How long a check can take before the site counts as down |
 | `RetentionDays` | `30` | How long history is kept |
-| `FailuresBeforeIncident` | `2` | Consecutive failed checks before an incident is recorded |
+| `FailuresBeforeIncident` | `2` | Consecutive failed checks before a failure counts as an incident and in uptime |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
 | `Maintenance` | `[]` | Planned maintenance windows (see below) |
