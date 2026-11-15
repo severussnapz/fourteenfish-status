@@ -21,7 +21,7 @@ A site is **up** when it responds with an HTTP status below 500.
 
 **Uptime.** Uptime is the percentage of up checks. The 24-hour and 30-day figures use the last 24 hours and 30 days of checks. Each day bar on the page shows the uptime for one UTC day. A day with no checks is shown empty. The average response time covers the last 24 hours.
 
-**Incidents.** A run of consecutive down checks for one site forms one incident. It starts at the first failed check and ends at the first successful check after it. An incident still open is shown as ongoing. Incidents are listed on the page and at `GET /api/incidents`.
+**Incidents.** A run of consecutive down checks for one site forms one incident, but only once the run reaches `FailuresBeforeIncident` checks (2 by default). A single failed check is ignored, so one-off blips don't appear in the log. The incident starts at the first failed check in the run and ends at the first successful check after it. An incident still open is shown as ongoing. Incidents are listed on the page and at `GET /api/incidents`.
 
 **Alerts.** Each site has a failure counter, which is kept in memory. When the counter reaches `FailuresBeforeAlert` (2), a DOWN email is sent. A recovery email is sent on the first up check after that. Alerts are not repeated while the site stays down. The counter resets when the app restarts, so a site that is still down after a restart sends a new DOWN email once it has failed the threshold again.
 
@@ -48,6 +48,7 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `IntervalMinutes` | `5` | How often to check each site |
 | `TimeoutSeconds` | `60` | How long a check can take before the site counts as down |
 | `RetentionDays` | `30` | How long history is kept |
+| `FailuresBeforeIncident` | `2` | Consecutive failed checks before an incident is recorded |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
 | `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
 | `Maintenance` | `[]` | Planned maintenance windows (see below) |

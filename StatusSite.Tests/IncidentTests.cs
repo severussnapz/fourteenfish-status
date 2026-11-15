@@ -53,6 +53,52 @@ public class IncidentTests
     }
 
     [Fact]
+    public void Incidents_IgnoresSingleFailedCheck_WhenMinimumIsTwo()
+    {
+        var history = new[]
+        {
+            Check(20, true),
+            Check(15, false, "timeout"),
+            Check(10, true),
+        };
+
+        Assert.Empty(StatusReport.Incidents(new[] { Site }, history, minimumFailures: 2));
+    }
+
+    [Fact]
+    public void Incidents_RecordsRun_WhenFailuresReachMinimum()
+    {
+        var history = new[]
+        {
+            Check(20, true),
+            Check(15, false, "timeout"),
+            Check(10, false, "timeout"),
+            Check(5, true),
+        };
+
+        var incident = Assert.Single(StatusReport.Incidents(new[] { Site }, history, minimumFailures: 2));
+
+        Assert.Equal(Now.AddMinutes(-15), incident.Start);
+        Assert.Equal(Now.AddMinutes(-5), incident.End);
+    }
+
+    [Fact]
+    public void Incidents_ReportsOngoingRun_WhenFailuresReachMinimum()
+    {
+        var history = new[]
+        {
+            Check(10, true),
+            Check(5, false, "timeout"),
+            Check(0, false, "timeout"),
+        };
+
+        var incident = Assert.Single(StatusReport.Incidents(new[] { Site }, history, minimumFailures: 2));
+
+        Assert.Null(incident.End);
+        Assert.Equal(Now.AddMinutes(-5), incident.Start);
+    }
+
+    [Fact]
     public void Incidents_ReturnsNewestFirst()
     {
         var other = new SiteConfig("Other", "https://other.test");

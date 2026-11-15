@@ -18,36 +18,43 @@ public static class StatusReport
         return list.Count == 0 ? null : Math.Round(list.Average(r => r.ElapsedMs), 0);
     }
 
-    // An incident is a run of failed checks for one site. It ends at the first successful check,
-    // so start and end times are accurate to the check interval.
+    // An incident is a run of at least `minimumFailures` consecutive failed checks for one site.
+    // It starts at the first failed check and ends at the first successful check after the run,
+    // so a single failed check (a one-off blip) is not reported as an incident.
     public static IReadOnlyList<Incident> Incidents(
         IEnumerable<SiteConfig> sites,
-        IReadOnlyList<CheckResult> history)
+        IReadOnlyList<CheckResult> history,
+        int minimumFailures = 1)
     {
         var incidents = new List<Incident>();
         foreach (var site in sites)
         {
-            Incident? open = null;
+            var run = new List<CheckResult>();
             foreach (var result in history.Where(r => r.Site == site.Name && !r.InMaintenance).OrderBy(r => r.CheckedAt))
             {
-                if (!result.Up && open is null)
+                if (!result.Up)
                 {
-                    var cause = result.Error ?? $"HTTP {result.StatusCode}";
-                    open = new Incident(site.Name, result.CheckedAt, null, cause);
+                    run.Add(result);
+                    continue;
                 }
-                else if (result.Up && open is not null)
+
+                if (run.Count >= minimumFailures)
                 {
-                    incidents.Add(open with { End = result.CheckedAt });
-                    open = null;
+                    incidents.Add(new Incident(site.Name, run[0].CheckedAt, result.CheckedAt, Cause(run[0])));
                 }
+                run.Clear();
             }
-            if (open is not null)
+
+            if (run.Count >= minimumFailures)
             {
-                incidents.Add(open);
+                incidents.Add(new Incident(site.Name, run[0].CheckedAt, null, Cause(run[0])));
             }
         }
         return incidents.OrderByDescending(i => i.Start).ToList();
     }
+
+    private static string Cause(CheckResult failure) =>
+        failure.Error ?? $"HTTP {failure.StatusCode}";
 
     public static IReadOnlyList<SiteStatus> Build(
         IEnumerable<SiteConfig> sites,
