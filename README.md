@@ -29,7 +29,7 @@ A site is **up** when it responds with an HTTP status below 500.
 
 **Storage.** Everything is stored in the history file. On Render this file must be on the persistent disk, or it is lost on every restart (see [Deploying to Render](#deploying-to-render-starter-plan)).
 
-**Pingdom.** A site with `PingdomUrl` set shows Pingdom's 7-day uptime and average response time under its day bars, as an independent measurement from outside. Under that it shows a chart of the average response time per day and an expandable "Response time by country" list. The figures are read from the Pingdom public report page every 15 minutes, kept in memory, and available at `GET /api/pingdom`. They are shown alongside our own figures and are not used for incidents or alerts. If Pingdom is unreachable or changes its page layout, the line is simply left out.
+**Pingdom.** A site with `PingdomUrl` set shows Pingdom's 7-day uptime and average response time under its day bars, as an independent measurement from outside. Under that it shows a blue filled line chart of the average response time per day, with date labels and a millisecond scale, and an expandable "Response time by country" list. Hover or focus a chart point for its date and value. On narrow screens the chart scrolls horizontally to keep labels readable. The figures are read from the Pingdom public report page every 15 minutes, kept in memory, and available at `GET /api/pingdom`. They are shown alongside our own figures and are not used for incidents or alerts. If Pingdom is unreachable or changes its page layout, the line is simply left out.
 
 ## Running
 

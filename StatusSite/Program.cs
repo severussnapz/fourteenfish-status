@@ -61,14 +61,53 @@ static string RenderPingdom(PingdomStats p)
 
     if (p.DailyResponse is { Count: > 0 } daily)
     {
-        var max = daily.Max(d => d.AvgResponseMs);
-        var bars = string.Join("", daily.Select(d =>
+        var scale = Math.Max(500, Math.Ceiling(daily.Max(d => d.AvgResponseMs) / 500) * 500);
+        var points = daily.Select((d, i) => new
         {
-            var height = max > 0 ? Math.Max(8, (int)Math.Round(100 * d.AvgResponseMs / max)) : 8;
-            var tip = $"{d.Date:yyyy-MM-dd}: {d.AvgResponseMs:0} ms";
-            return $"""<span class="bar" tabindex="0" style="height:{height}%" data-tip="{tip}" aria-label="{tip}"></span>""";
-        }));
-        html.Append($"""<div class="rt-label">Average response time per day</div><div class="rt">{bars}</div>""");
+            Day = d,
+            X = daily.Count == 1 ? 370 : 70 + (int)Math.Round(600.0 * i / (daily.Count - 1)),
+            Y = 195 - (int)Math.Round(150 * d.AvgResponseMs / scale),
+        }).ToList();
+        var coordinates = string.Join(" ", points.Select(p => $"{p.X},{p.Y}"));
+        html.Append("""
+            <figure class="rt-chart">
+              <figcaption>Response Time</figcaption>
+              <div class="rt-scroll" tabindex="0" role="region" aria-label="Daily response time chart">
+                <svg class="rt" viewBox="0 0 700 225" role="img" aria-label="Pingdom average response time per day over the past 7 days, in milliseconds">
+                  <rect class="rt-plot" x="60" y="45" width="620" height="150"/>
+            """);
+        foreach (var point in points)
+        {
+            var date = point.Day.Date.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture);
+            html.Append($"""
+                <line class="rt-grid" x1="{point.X}" y1="45" x2="{point.X}" y2="195"/>
+                <text class="rt-date" x="{point.X}" y="28" text-anchor="middle">{date}</text>
+                """);
+        }
+        for (var i = 0; i <= 2; i++)
+        {
+            var y = 195 - 75 * i;
+            var value = (scale * i / 2).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+            html.Append($"""
+                <line class="rt-grid" x1="60" y1="{y}" x2="680" y2="{y}"/>
+                <text class="rt-tick" x="50" y="{y - 2}" text-anchor="end">{value}<tspan x="50" dy="13">ms</tspan></text>
+                """);
+        }
+        html.Append($"""
+            <polygon class="rt-area" points="{points[0].X},195 {coordinates} {points[^1].X},195"/>
+            <polyline class="rt-line" points="{coordinates}"/>
+            """);
+        foreach (var point in points)
+        {
+            var tip = $"{point.Day.Date:yyyy-MM-dd}: {point.Day.AvgResponseMs:0} ms";
+            html.Append($"""<circle class="rt-point" cx="{point.X}" cy="{point.Y}" r="3.5" tabindex="0" role="img" aria-label="{tip}"><title>{tip}</title></circle>""");
+        }
+        html.Append("""
+                </svg>
+              </div>
+              <p class="rt-caption">Average performance per day over the past 7 days.</p>
+            </figure>
+            """);
     }
 
     if (p.CountryResponseMs is { Count: > 0 } countries)
@@ -314,9 +353,18 @@ static class PageStyle
     .meta { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .bars { display: flex; gap: 3px; height: 28px; }
     .pingdom { margin-top: .55rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
-    .rt-label { margin-top: .7rem; color: var(--muted); font-size: .75rem; }
-    .rt { display: flex; align-items: flex-end; gap: 3px; height: 40px; margin-top: .3rem; }
-    .rt .bar { background: var(--maint); }
+    .rt-chart { margin: 1rem 0 0; }
+    .rt-chart figcaption { margin-bottom: .5rem; font-size: .95rem; font-weight: 600; }
+    .rt-scroll { overflow-x: auto; border-radius: 8px; background: linear-gradient(var(--unknown-bg), var(--none)); }
+    .rt { display: block; width: 100%; min-width: 480px; height: auto; }
+    .rt-plot { fill: var(--panel); stroke: var(--border); }
+    .rt-grid { stroke: var(--border); stroke-width: 1; }
+    .rt-date, .rt-tick { fill: var(--text); font-size: 11px; }
+    .rt-area { fill: #80baf4; fill-opacity: .8; }
+    .rt-line { fill: none; stroke: #6597c6; stroke-width: 1.5; }
+    .rt-point { fill: #9acdff; stroke: #6597c6; stroke-width: 1.5; }
+    .rt-point:hover, .rt-point:focus-visible { r: 5; stroke: var(--text); stroke-width: 2; }
+    .rt-caption { margin: .5rem 0 0; color: var(--muted); font-size: .8rem; font-style: italic; }
     .countries { margin-top: .7rem; font-size: .8rem; }
     .countries summary { cursor: pointer; color: var(--muted); }
     .country { display: flex; align-items: center; gap: .6rem; padding: .2rem 0; font-variant-numeric: tabular-nums; }
