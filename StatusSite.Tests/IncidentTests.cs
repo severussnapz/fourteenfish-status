@@ -131,6 +131,23 @@ public class IncidentTests
     }
 
     [Fact]
+    public void Incidents_DropsIncidentsEndedBeforeSince_KeepsOngoing()
+    {
+        var history = new[]
+        {
+            Check(600, false),
+            Check(590, true),
+            Check(100, true),
+            Check(50, false),
+        };
+
+        var incident = Assert.Single(StatusReport.Incidents(new[] { Site }, history, since: Now.AddMinutes(-200)));
+
+        Assert.Null(incident.End);
+        Assert.Equal(Now.AddMinutes(-50), incident.Start);
+    }
+
+    [Fact]
     public void Incidents_ReturnsNewestFirst()
     {
         var other = new SiteConfig("Other", "https://other.test");

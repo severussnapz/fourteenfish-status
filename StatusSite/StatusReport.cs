@@ -24,7 +24,8 @@ public static class StatusReport
     public static IReadOnlyList<Incident> Incidents(
         IEnumerable<SiteConfig> sites,
         IReadOnlyList<CheckResult> history,
-        int minimumFailures = 1)
+        int minimumFailures = 1,
+        DateTimeOffset? since = null)
     {
         var incidents = new List<Incident>();
         foreach (var site in sites)
@@ -50,7 +51,11 @@ public static class StatusReport
                 incidents.Add(new Incident(site.Name, run[0].CheckedAt, null, Cause(run[0])));
             }
         }
-        return incidents.OrderByDescending(i => i.Start).ToList();
+        // Incidents that ended before `since` are dropped; ones still open or ending later are kept.
+        return incidents
+            .Where(i => since is null || i.End is null || i.End >= since)
+            .OrderByDescending(i => i.Start)
+            .ToList();
     }
 
     private static string Cause(CheckResult failure) =>

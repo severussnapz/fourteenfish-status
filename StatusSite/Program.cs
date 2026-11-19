@@ -33,7 +33,7 @@ app.MapGet("/api/status", (HistoryStore history) =>
     Results.Ok(StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow, monitorOptions.FailuresBeforeIncident)));
 
 app.MapGet("/api/incidents", (HistoryStore history) =>
-    Results.Ok(StatusReport.Incidents(monitorOptions.Sites, history.All(), monitorOptions.FailuresBeforeIncident)));
+    Results.Ok(StatusReport.Incidents(monitorOptions.Sites, history.All(), monitorOptions.FailuresBeforeIncident, DateTimeOffset.UtcNow.AddDays(-30))));
 
 app.MapGet("/api/maintenance", () =>
     Results.Ok(Maintenance.Upcoming(monitorOptions.Maintenance, DateTimeOffset.UtcNow)));
@@ -41,8 +41,8 @@ app.MapGet("/api/maintenance", () =>
 app.MapGet("/", (HistoryStore history) =>
 {
     var statuses = StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow, monitorOptions.FailuresBeforeIncident);
-    var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All(), monitorOptions.FailuresBeforeIncident);
     var now = DateTimeOffset.UtcNow;
+    var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All(), monitorOptions.FailuresBeforeIncident, now.AddDays(-30));
     return Results.Content(RenderPage(statuses, incidents, monitorOptions.Maintenance, now), "text/html");
 });
 
