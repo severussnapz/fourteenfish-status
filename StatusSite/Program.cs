@@ -16,6 +16,10 @@ builder.Services.AddSingleton(_ => new HistoryStore(
     monitorOptions.HistoryFile,
     TimeSpan.FromDays(monitorOptions.RetentionDays)));
 builder.Services.AddHttpClient("monitor");
+builder.Services.AddHttpClient("pingdom", client =>
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; FourteenFishStatus/1.0)"));
+builder.Services.AddSingleton<PingdomCache>();
+builder.Services.AddHostedService<PingdomMonitor>();
 
 builder.Services.Configure<AlertOptions>(builder.Configuration.GetSection("Alerts"));
 var alertOptions = builder.Configuration.GetSection("Alerts").Get<AlertOptions>() ?? new AlertOptions();
@@ -38,12 +42,14 @@ app.MapGet("/api/incidents", (HistoryStore history) =>
 app.MapGet("/api/maintenance", () =>
     Results.Ok(Maintenance.Upcoming(monitorOptions.Maintenance, DateTimeOffset.UtcNow)));
 
-app.MapGet("/", (HistoryStore history) =>
+app.MapGet("/api/pingdom", (PingdomCache pingdom) => Results.Ok(pingdom.All()));
+
+app.MapGet("/", (HistoryStore history, PingdomCache pingdom) =>
 {
     var statuses = StatusReport.Build(monitorOptions.Sites, history.All(), DateTimeOffset.UtcNow, monitorOptions.FailuresBeforeIncident);
     var now = DateTimeOffset.UtcNow;
     var incidents = StatusReport.Incidents(monitorOptions.Sites, history.All(), monitorOptions.FailuresBeforeIncident, now.AddDays(-30));
-    return Results.Content(RenderPage(statuses, incidents, monitorOptions.Maintenance, now), "text/html");
+    return Results.Content(RenderPage(statuses, incidents, monitorOptions.Maintenance, pingdom.All(), now), "text/html");
 });
 
 app.Run();
@@ -61,6 +67,7 @@ static string RenderPage(
     IReadOnlyList<SiteStatus> statuses,
     IReadOnlyList<Incident> incidents,
     IReadOnlyList<MaintenanceWindow> maintenance,
+    IReadOnlyDictionary<string, PingdomStats> pingdom,
     DateTimeOffset now)
 {
     var inMaintenance = statuses.ToDictionary(s => s.Name, s => Maintenance.IsActive(maintenance, s.Name, now));
@@ -96,6 +103,9 @@ static string RenderPage(
             };
             return $"""<span class="bar {barClass}" tabindex="0" data-tip="{d.Date:yyyy-MM-dd}: {text}" aria-label="{d.Date:yyyy-MM-dd}: {text}"></span>""";
         }));
+        var pingdomLine = pingdom.TryGetValue(s.Name, out var p)
+            ? $"""<div class="pingdom">Pingdom (7 days): {p.Uptime7d}% uptime{(p.AvgResponseMs7d is double ms ? $" · {ms:0} ms avg response" : "")}</div>"""
+            : "";
         return $"""
             <div class="row">
               <div class="row-head">
@@ -104,6 +114,7 @@ static string RenderPage(
                 <span class="meta">{(s.Uptime30d is double u30 ? $"{u30}% uptime" : "–")}</span>
               </div>
               <div class="bars">{bars}</div>
+              {pingdomLine}
             </div>
             """;
     }));
@@ -258,6 +269,7 @@ static class PageStyle
     .name { font-size: .95rem; }
     .meta { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .bars { display: flex; gap: 3px; height: 28px; }
+    .pingdom { margin-top: .55rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .bar { position: relative; flex: 1 1 0; min-width: 4px; border-radius: 2px; background: var(--none); outline: none; }
     .bar.up { background: var(--up); }
     .bar.warn { background: var(--warn); }

@@ -1,7 +1,8 @@
 namespace StatusSite;
 
 // Expect is optional. When set, the page body must contain it (case-insensitive) for the site to count as up.
-public record SiteConfig(string Name, string Url, string? Expect = null);
+// PingdomUrl is optional: a Pingdom public report page whose 7-day figures are shown next to this site's own.
+public record SiteConfig(string Name, string Url, string? Expect = null, string? PingdomUrl = null);
 
 public record CheckResult(
     string Site,

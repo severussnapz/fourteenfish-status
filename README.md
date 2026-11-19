@@ -29,6 +29,8 @@ A site is **up** when it responds with an HTTP status below 500.
 
 **Storage.** Everything is stored in the history file. On Render this file must be on the persistent disk, or it is lost on every restart (see [Deploying to Render](#deploying-to-render-starter-plan)).
 
+**Pingdom.** A site with `PingdomUrl` set shows Pingdom's 7-day uptime and average response time under its day bars, as an independent measurement from outside. The figures are read from the Pingdom public report page every 15 minutes, kept in memory, and available at `GET /api/pingdom`. They are shown alongside our own figures and are not used for incidents or alerts. If Pingdom is unreachable or changes its page layout, the line is simply left out.
+
 ## Running
 
 Requires the .NET 8 SDK.
@@ -50,7 +52,7 @@ Settings live in `StatusSite/appsettings.json` under `Monitor`:
 | `RetentionDays` | `30` | How long history is kept |
 | `FailuresBeforeIncident` | `2` | Consecutive failed checks before a failure counts as an incident and in uptime |
 | `HistoryFile` | `history.jsonl` | Where check results are stored |
-| `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`) |
+| `Sites` | three FourteenFish sites | Sites to monitor (`Name`, `Url`, optional `Expect`, optional `PingdomUrl`) |
 | `Maintenance` | `[]` | Planned maintenance windows (see below) |
 
 ### Content checks
