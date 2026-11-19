@@ -5,7 +5,14 @@ using Microsoft.Extensions.Options;
 
 namespace StatusSite;
 
-public record PingdomStats(double Uptime7d, double? AvgResponseMs7d, DateTimeOffset FetchedAt);
+public record PingdomDay(DateOnly Date, double AvgResponseMs);
+
+public record PingdomStats(
+    double Uptime7d,
+    double? AvgResponseMs7d,
+    DateTimeOffset FetchedAt,
+    IReadOnlyList<PingdomDay>? DailyResponse = null,
+    IReadOnlyDictionary<string, double>? CountryResponseMs = null);
 
 public class PingdomCache
 {
@@ -26,8 +33,17 @@ public static partial class PingdomParser
     [GeneratedRegex(@"resp\. time last 7 days</h3>\s*<p[^>]*>\s*([\d.]+)\s*ms", RegexOptions.IgnoreCase)]
     private static partial Regex ResponsePattern();
 
+    [GeneratedRegex(@"show_responsetime_chart\(\s*\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]\s*,\s*\[([\d.,\s]*)\]", RegexOptions.IgnoreCase)]
+    private static partial Regex DailyPattern();
+
+    [GeneratedRegex(@"var phpArray = \{([^}]*)\}")]
+    private static partial Regex CountryBlockPattern();
+
+    [GeneratedRegex(@"""([A-Z]{2})""\s*:\s*([\d.]+)")]
+    private static partial Regex CountryPattern();
+
     // Reads the headline figures from a Pingdom public report page. Returns null when the uptime figure is missing,
-    // for example if Pingdom changes the page layout.
+    // for example if Pingdom changes the page layout. The daily and per-country figures are optional extras.
     public static PingdomStats? Parse(string html, DateTimeOffset fetchedAt)
     {
         var uptime = UptimePattern().Match(html);
@@ -43,7 +59,50 @@ public static partial class PingdomParser
             response = ms;
         }
 
-        return new PingdomStats(uptimeValue, response, fetchedAt);
+        return new PingdomStats(uptimeValue, response, fetchedAt, ParseDaily(html), ParseCountries(html));
+    }
+
+    private static IReadOnlyList<PingdomDay>? ParseDaily(string html)
+    {
+        var match = DailyPattern().Match(html);
+        if (!match.Success
+            || !int.TryParse(match.Groups[1].Value, out var year)
+            || !int.TryParse(match.Groups[2].Value, out var month)
+            || !int.TryParse(match.Groups[3].Value, out var day))
+        {
+            return null;
+        }
+
+        try
+        {
+            var start = new DateOnly(year, month, day);
+            var values = match.Groups[4].Value
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(v => double.TryParse(v, CultureInfo.InvariantCulture, out var d) ? d : (double?)null)
+                .ToList();
+            if (values.Count == 0 || values.Any(v => v is null))
+            {
+                return null;
+            }
+            return values.Select((v, i) => new PingdomDay(start.AddDays(i), v!.Value)).ToList();
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    private static IReadOnlyDictionary<string, double>? ParseCountries(string html)
+    {
+        var block = CountryBlockPattern().Match(html);
+        if (!block.Success)
+        {
+            return null;
+        }
+
+        var countries = CountryPattern().Matches(block.Groups[1].Value)
+            .ToDictionary(m => m.Groups[1].Value, m => double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture));
+        return countries.Count == 0 ? null : countries;
     }
 }
 

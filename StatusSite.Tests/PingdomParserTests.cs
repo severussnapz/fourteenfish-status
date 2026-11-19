@@ -34,6 +34,40 @@ public class PingdomParserTests
     }
 
     [Fact]
+    public void Parse_ReadsDailyResponseTimes_StartingOnTheGivenDate()
+    {
+        var html = Page + "show_responsetime_chart([2026,11,13],\n [587,498,524],\n ',', '%b %e');";
+
+        var daily = PingdomParser.Parse(html, Now)!.DailyResponse!;
+
+        Assert.Equal(3, daily.Count);
+        Assert.Equal(new DateOnly(2026, 11, 13), daily[0].Date);
+        Assert.Equal(587, daily[0].AvgResponseMs);
+        Assert.Equal(new DateOnly(2026, 11, 15), daily[2].Date);
+    }
+
+    [Fact]
+    public void Parse_ReadsResponseTimePerCountry()
+    {
+        var html = Page + "var phpArray = {\"GB\":447,\"NL\":347,\"FI\":1593};";
+
+        var countries = PingdomParser.Parse(html, Now)!.CountryResponseMs!;
+
+        Assert.Equal(3, countries.Count);
+        Assert.Equal(447, countries["GB"]);
+        Assert.Equal(1593, countries["FI"]);
+    }
+
+    [Fact]
+    public void Parse_LeavesExtrasEmpty_WhenPageHasNoChartData()
+    {
+        var stats = PingdomParser.Parse(Page, Now)!;
+
+        Assert.Null(stats.DailyResponse);
+        Assert.Null(stats.CountryResponseMs);
+    }
+
+    [Fact]
     public void Parse_LeavesResponseTimeEmpty_WhenOnlyUptimeIsPresent()
     {
         var stats = PingdomParser.Parse("<h3>Uptime last 7 days</h3><p class=\"large\">100%</p>", Now);

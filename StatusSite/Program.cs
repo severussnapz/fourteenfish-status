@@ -54,6 +54,38 @@ app.MapGet("/", (HistoryStore history, PingdomCache pingdom) =>
 
 app.Run();
 
+static string RenderPingdom(PingdomStats p)
+{
+    var html = new System.Text.StringBuilder();
+    html.Append($"""<div class="pingdom">Pingdom (7 days): {p.Uptime7d}% uptime{(p.AvgResponseMs7d is double ms ? $" · {ms:0} ms avg response" : "")}</div>""");
+
+    if (p.DailyResponse is { Count: > 0 } daily)
+    {
+        var max = daily.Max(d => d.AvgResponseMs);
+        var bars = string.Join("", daily.Select(d =>
+        {
+            var height = max > 0 ? Math.Max(8, (int)Math.Round(100 * d.AvgResponseMs / max)) : 8;
+            var tip = $"{d.Date:yyyy-MM-dd}: {d.AvgResponseMs:0} ms";
+            return $"""<span class="bar" tabindex="0" style="height:{height}%" data-tip="{tip}" aria-label="{tip}"></span>""";
+        }));
+        html.Append($"""<div class="rt-label">Average response time per day</div><div class="rt">{bars}</div>""");
+    }
+
+    if (p.CountryResponseMs is { Count: > 0 } countries)
+    {
+        var max = countries.Values.Max();
+        var rows = string.Join("", countries.OrderBy(c => c.Value).Select(c =>
+        {
+            var width = max > 0 ? Math.Max(2, (int)Math.Round(100 * c.Value / max)) : 2;
+            var name = CountryNames.Map.TryGetValue(c.Key, out var n) ? n : c.Key;
+            return $"""<div class="country"><span class="country-name">{WebUtility.HtmlEncode(name)}</span><span class="country-bar"><span style="width:{width}%"></span></span><span class="country-ms">{c.Value:0} ms</span></div>""";
+        }));
+        html.Append($"""<details class="countries"><summary>Response time by country</summary>{rows}</details>""");
+    }
+
+    return html.ToString();
+}
+
 static string FormatDuration(TimeSpan span)
 {
     if (span.TotalHours >= 1)
@@ -103,9 +135,7 @@ static string RenderPage(
             };
             return $"""<span class="bar {barClass}" tabindex="0" data-tip="{d.Date:yyyy-MM-dd}: {text}" aria-label="{d.Date:yyyy-MM-dd}: {text}"></span>""";
         }));
-        var pingdomLine = pingdom.TryGetValue(s.Name, out var p)
-            ? $"""<div class="pingdom">Pingdom (7 days): {p.Uptime7d}% uptime{(p.AvgResponseMs7d is double ms ? $" · {ms:0} ms avg response" : "")}</div>"""
-            : "";
+        var pingdomLine = pingdom.TryGetValue(s.Name, out var p) ? RenderPingdom(p) : "";
         return $"""
             <div class="row">
               <div class="row-head">
@@ -212,6 +242,20 @@ static string RenderPage(
         """;
 }
 
+static class CountryNames
+{
+    public static readonly Dictionary<string, string> Map = new()
+    {
+        ["AT"] = "Austria", ["AU"] = "Australia", ["BE"] = "Belgium", ["BR"] = "Brazil", ["CA"] = "Canada",
+        ["CH"] = "Switzerland", ["CL"] = "Chile", ["CN"] = "China", ["CZ"] = "Czechia", ["DE"] = "Germany",
+        ["DK"] = "Denmark", ["ES"] = "Spain", ["FI"] = "Finland", ["FR"] = "France", ["GB"] = "United Kingdom",
+        ["GR"] = "Greece", ["HK"] = "Hong Kong", ["IE"] = "Ireland", ["IN"] = "India", ["IT"] = "Italy",
+        ["JP"] = "Japan", ["KR"] = "South Korea", ["MX"] = "Mexico", ["NL"] = "Netherlands", ["NO"] = "Norway",
+        ["PL"] = "Poland", ["PT"] = "Portugal", ["RO"] = "Romania", ["RU"] = "Russia", ["SE"] = "Sweden",
+        ["SG"] = "Singapore", ["SK"] = "Slovakia", ["US"] = "United States", ["ZA"] = "South Africa",
+    };
+}
+
 static class PageStyle
 {
     public const string Css = """
@@ -270,6 +314,16 @@ static class PageStyle
     .meta { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .bars { display: flex; gap: 3px; height: 28px; }
     .pingdom { margin-top: .55rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .rt-label { margin-top: .7rem; color: var(--muted); font-size: .75rem; }
+    .rt { display: flex; align-items: flex-end; gap: 3px; height: 40px; margin-top: .3rem; }
+    .rt .bar { background: var(--maint); }
+    .countries { margin-top: .7rem; font-size: .8rem; }
+    .countries summary { cursor: pointer; color: var(--muted); }
+    .country { display: flex; align-items: center; gap: .6rem; padding: .2rem 0; font-variant-numeric: tabular-nums; }
+    .country-name { flex: 0 0 8.5rem; }
+    .country-bar { flex: 1; height: 6px; background: var(--none); border-radius: 3px; overflow: hidden; }
+    .country-bar span { display: block; height: 100%; background: var(--maint); }
+    .country-ms { flex: 0 0 4.5rem; text-align: right; color: var(--muted); }
     .bar { position: relative; flex: 1 1 0; min-width: 4px; border-radius: 2px; background: var(--none); outline: none; }
     .bar.up { background: var(--up); }
     .bar.warn { background: var(--warn); }
