@@ -57,7 +57,7 @@ app.Run();
 static string RenderPingdom(PingdomStats p)
 {
     var html = new System.Text.StringBuilder();
-    html.Append($"""<div class="pingdom">Pingdom (7 days): {p.Uptime7d}% uptime{(p.AvgResponseMs7d is double ms ? $" · {ms:0} ms avg response" : "")}</div>""");
+    html.Append($"""<div class="pingdom">Pingdom average response (7 days): {(p.AvgResponseMs7d is double ms ? $"{ms:0} ms" : "unavailable")}</div>""");
 
     if (p.DailyResponse is { Count: > 0 } daily)
     {
@@ -175,13 +175,15 @@ static string RenderPage(
             return $"""<span class="bar {barClass}" tabindex="0" data-tip="{d.Date:yyyy-MM-dd}: {text}" aria-label="{d.Date:yyyy-MM-dd}: {text}"></span>""";
         }));
         var pingdomLine = pingdom.TryGetValue(s.Name, out var p) ? RenderPingdom(p) : "";
+        var primaryUptime = p is not null ? $"{p.Uptime7d}% uptime" : "Data unavailable";
         return $"""
             <div class="row">
               <div class="row-head">
                 <span class="dot {css}" title="{label}"></span>
                 <span class="name">{WebUtility.HtmlEncode(s.Name)}</span>
-                <span class="meta">{(s.Uptime30d is double u30 ? $"{u30}% uptime" : "–")}</span>
+                <span class="meta"><strong>{primaryUptime}</strong><span>Pingdom (7 days)</span></span>
               </div>
+              <div class="monitor-uptime">Our monitor (30 days): {(s.Uptime30d is double u30 ? $"{u30}% uptime" : "No data")}</div>
               <div class="bars">{bars}</div>
               {pingdomLine}
             </div>
@@ -253,9 +255,10 @@ static string RenderPage(
             <section class="panel">
               <div class="panel-head">
                 <span>System status</span>
-                <span class="range">Last 30 days</span>
+                <span class="range">Uptime &amp; performance</span>
               </div>
               {{rows}}
+              <p class="source-note">Headline uptime is from Pingdom (7 days). Daily uptime bars are from our monitor (30 days). Different check schedules and failure thresholds can produce different figures.</p>
             </section>
 
             <section class="panel maintenance-panel">
@@ -344,13 +347,16 @@ static class PageStyle
     .range { color: var(--muted); font-weight: 400; font-size: .85rem; }
     .row { padding: .9rem 1rem 1rem; border-bottom: 1px solid var(--border); }
     .row:last-child { border-bottom: none; }
-    .row-head { display: flex; align-items: center; gap: .55rem; margin-bottom: .55rem; }
+    .row-head { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; margin-bottom: .55rem; }
     .dot { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
     .dot.up { background: var(--up); }
     .dot.down { background: var(--down); }
     .dot.unknown { background: var(--unknown); }
     .name { font-size: .95rem; }
-    .meta { margin-left: auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .meta { display: grid; margin-left: auto; color: var(--muted); text-align: right; font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .meta strong { color: var(--text); font-size: .95rem; }
+    .monitor-uptime { margin-bottom: .4rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .source-note { margin: 0; padding: .8rem 1rem; color: var(--muted); font-size: .8rem; }
     .bars { display: flex; gap: 3px; height: 28px; }
     .pingdom { margin-top: .55rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
     .rt-chart { margin: 1rem 0 0; }
